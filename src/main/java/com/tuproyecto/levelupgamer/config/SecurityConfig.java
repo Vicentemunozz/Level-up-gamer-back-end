@@ -1,33 +1,31 @@
 package com.tuproyecto.levelupgamer.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.*;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.cors.CorsConfiguration; // (1) Importar
-import org.springframework.web.cors.CorsConfigurationSource; // (2) Importar
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource; // (3) Importar
-
-import java.util.Arrays; // (4) Importar
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.*;
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+    @Autowired private JwtAuthenticationFilter jwtAuthFilter;
 
-    @SuppressWarnings("deprecation")
+    @Bean public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+
     @Bean
     public AuthenticationProvider authenticationProvider(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
@@ -41,41 +39,37 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
     
-    // (5) --- NUEVO BEAN: CONFIGURACIÓN DE CORS ---
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Le decimos que confiamos en el origen de React (localhost:3000)
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
-        // Permitimos los métodos que React usará
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000")); // React
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        // Permitimos todas las cabeceras (como "Authorization" para el token)
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        // Permitimos que React envíe credenciales (cookies, etc.)
         configuration.setAllowCredentials(true);
-        
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration); // Aplica esta regla a TODAS las rutas
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authProvider) throws Exception {
         http
-            // (6) --- AÑADIMOS LA CONFIGURACIÓN DE CORS ---
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products").permitAll()
-                .requestMatchers("/api/auth/**").permitAll() 
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
-                .anyRequest().authenticated() 
+                // Relajamos la seguridad para facilitar el CRUD
+                .requestMatchers(HttpMethod.POST, "/api/products").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/products/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/products/**").authenticated()
+                .anyRequest().authenticated()
             )
-            .headers(headers -> headers
-                .frameOptions(frameOptions -> frameOptions.sameOrigin())
-            );
-
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authenticationProvider(authProvider)
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .headers(headers -> headers.frameOptions(frame -> frame.disable()));
         return http.build();
     }
 }
