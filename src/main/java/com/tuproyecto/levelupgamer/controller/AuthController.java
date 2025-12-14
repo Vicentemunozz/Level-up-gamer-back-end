@@ -31,7 +31,10 @@ public class AuthController {
         newUser.setPassword(passwordEncoder.encode(request.getPassword()));
         newUser.setName(request.getName() != null ? request.getName() : "Usuario");
         newUser.setBirthDate(request.getBirthDate());
-        newUser.setRole("user");
+        
+        // Ajuste: Guardar el rol en minúsculas por consistencia
+        String role = request.getRole() != null ? request.getRole().toLowerCase() : "user";
+        newUser.setRole(role); 
         newUser.setPoints(0);
 
         userRepository.save(newUser);

@@ -57,13 +57,17 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
-                .requestMatchers("/h2-console/**").permitAll()
-                // Relajamos la seguridad para facilitar el CRUD
-                .requestMatchers(HttpMethod.POST, "/api/products").authenticated()
+                // Permite acceso público al registro y login
+                .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll() // Listar productos
+                
+                // RUTAS ADMINISTRATIVAS (Requieren Token)
+                .requestMatchers(HttpMethod.POST, "/api/products/").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/products/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/products/**").authenticated()
+                
+                // Permite acceso a la consola de H2 si decides volver a usarla
+                .requestMatchers("/h2-console/**").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

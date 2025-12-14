@@ -7,4 +7,5 @@ public class RegisterRequest {
     private String password;
     private String name;      // Para React
     private String birthDate; // Para Android
+    private String role;
 }
